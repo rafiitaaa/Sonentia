@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+.ipynb_checkpoints/
+
+data/audio/raw/
+data/audio/processed/
+data/audio/splits/
+entrenamiento/
+
+models/text_beto_v1/
+notebooks/runs_audio_ast_es_vram_max/export_transformers/
+multimodal-emocion/models/text_beto_v1/
+
+*.pt
+*.bin
+*.safetensors

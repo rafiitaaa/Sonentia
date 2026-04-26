@@ -1,0 +1,22 @@
+# Core
+numpy
+pandas
+matplotlib
+scikit-learn
+joblib
+
+# Text DL (RTX)
+torch
+transformers
+datasets
+accelerate
+evaluate
+safetensors
+
+# Audio
+librosa
+soundfile
+torchaudio
+
+# App
+streamlit
