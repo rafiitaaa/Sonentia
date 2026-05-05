@@ -54,6 +54,6 @@ Se descargan automáticamente desde Hugging Face:
 ## ⚙️ Instalación
 
 ```bash
-git clone https://github.com/TU_USUARIO/Sonentia.git
+git clone https://github.com/rafiitaaa/Sonentia
 cd Sonentia
 pip install -r requirements.txt
