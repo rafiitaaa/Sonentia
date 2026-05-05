@@ -44,10 +44,10 @@ Los modelos no están incluidos en el repositorio debido a su tamaño.
 Se descargan automáticamente desde Hugging Face:
 
 - 🎤 Audio:  
-  https://huggingface.co/rafiitaaa/sonentia-audio  
+  https://huggingface.co/rafiiitaaaaa/sonentia-audio  
 
 - 📝 Texto:  
-  https://huggingface.co/rafiitaaa/sonentia-text  
+  https://huggingface.co/rafiiitaaaaa/sonentia-text  
 
 ---
 
