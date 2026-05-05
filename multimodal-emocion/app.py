@@ -1,14 +1,3 @@
-# app.py
-# Ejecuta: python app.py
-# Estructura esperada:
-#   multimodal-emocion/
-#     app.py
-#     models/
-#       text_beto_v1/best/   (Transformers: config + tokenizer + model.safetensors)
-#       ast_es_best.pt       (checkpoint .pt de audio)  <-- puedes cambiarlo
-#       (opcional) export_transformers/  (audio HuggingFace save_pretrained)
-
-import os
 import numpy as np
 import torch
 import gradio as gr
@@ -26,40 +15,254 @@ from transformers import (
 # ==========================
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Texto (según tu captura)
-TEXT_MODEL_DIR = os.path.join("models", "text_beto_v1", "best")
+TEXT_MODEL_ID = "rafiiitaaaaa/sonentia-text"
+AUDIO_MODEL_ID = "rafiiitaaaaa/sonentia-audio"
 
-# Audio: primero intenta HF export (si existe), si no usa .pt
-AUDIO_HF_DIR = os.path.join("models", "export_transformers")  # opcional
-AUDIO_PT_PATH = os.path.join("models", "ast_es_best.pt")      # cámbialo si quieres
-
-# Base AST (para reconstruir el modelo cuando el audio está en .pt)
-AST_BASE = "MIT/ast-finetuned-audioset-10-10-0.4593"
-
-# Audio settings (en tu pipeline normalmente 16k)
 TARGET_SR = 16000
-MAX_SECONDS = 5.0  # recorta o rellena a 5s para estabilidad
+MAX_SECONDS = 5.0
 
-DEFAULT_EMOTIONS = ["anger", "disgust", "fear", "joy", "neutral", "sadness"]
+
+# ==========================
+# STYLE
+# ==========================
+CSS = """
+.gradio-container {
+    max-width: none !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    padding: 0 !important;
+    background:
+        radial-gradient(circle at top left, rgba(99,102,241,0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(139,92,246,0.14), transparent 30%),
+        linear-gradient(180deg, #020617 0%, #030712 100%) !important;
+    color: #e5e7eb !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif !important;
+}
+
+footer {
+    display: none !important;
+}
+
+.main-wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 36px 28px 28px 28px;
+}
+
+/* HERO */
+.hero {
+    text-align: center;
+    padding: 58px 28px;
+    border-radius: 32px;
+    background:
+        linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,27,75,0.78)),
+        radial-gradient(circle at top right, rgba(99,102,241,0.22), transparent 30%);
+    border: 1px solid rgba(148,163,184,0.18);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.42);
+    margin-bottom: 34px;
+    animation: fadeIn 0.8s ease both;
+}
+
+.hero h1 {
+    font-size: 62px !important;
+    font-weight: 850 !important;
+    color: #f8fafc !important;
+    letter-spacing: -2px !important;
+    margin: 18px 0 12px 0 !important;
+    animation: floatTitle 3.2s ease-in-out infinite;
+}
+
+.hero p {
+    color: #cbd5e1 !important;
+    font-size: 17px !important;
+    margin: 0 auto;
+    max-width: 700px;
+}
+
+.badge-row {
+    margin-bottom: 10px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 8px 14px;
+    margin: 4px;
+    border-radius: 999px;
+    background: rgba(99,102,241,0.18);
+    color: #c7d2fe;
+    border: 1px solid rgba(199,210,254,0.20);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #22c55e;
+    margin-right: 8px;
+    box-shadow: 0 0 0 6px rgba(34,197,94,0.12);
+    animation: pulse 1.4s infinite;
+}
+
+.model-status {
+    margin-top: 18px !important;
+}
+
+/* TITULOS SIN RECUADRO Y CENTRADOS */
+.plain-title,
+.plain-desc {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.plain-title h4 {
+    color: #e5e7eb !important;
+    text-align: center !important;
+    margin: 0 0 12px 0 !important;
+    font-weight: 750 !important;
+}
+
+.plain-desc h3 {
+    color: #f8fafc !important;
+    text-align: center !important;
+    margin: 0 0 22px 0 !important;
+    font-weight: 750 !important;
+}
+
+/* OCULTAR LABELS NATIVOS */
+.label-wrap,
+label {
+    display: none !important;
+}
+
+/* TARJETAS SOLO PARA COMPONENTES */
+.glass-card {
+    border-radius: 24px !important;
+    background: rgba(15,23,42,0.70) !important;
+    border: 1px solid rgba(148,163,184,0.16) !important;
+    box-shadow: 0 14px 42px rgba(0,0,0,0.22) !important;
+    padding: 14px !important;
+}
+
+/* INPUTS */
+textarea,
+input {
+    background: rgba(2,6,23,0.50) !important;
+    color: #f8fafc !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(148,163,184,0.18) !important;
+}
+
+textarea:disabled,
+input:disabled {
+    opacity: 1 !important;
+    background: rgba(2,6,23,0.50) !important;
+    color: #f8fafc !important;
+}
+
+/* AUDIO */
+.audio-container,
+.upload-container {
+    border-radius: 24px !important;
+    background: rgba(15,23,42,0.70) !important;
+    border: 1px solid rgba(148,163,184,0.16) !important;
+}
+
+/* TABS */
+.tabs {
+    background: transparent !important;
+    border: none !important;
+}
+
+.tab-nav {
+    border-bottom: 1px solid rgba(148,163,184,0.18) !important;
+}
+
+.tab-nav button {
+    border-radius: 999px !important;
+    color: #cbd5e1 !important;
+    font-weight: 650 !important;
+}
+
+/* BOTONES */
+button {
+    border-radius: 18px !important;
+    font-weight: 750 !important;
+    transition: 0.18s ease !important;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px rgba(99,102,241,0.35) !important;
+}
+
+/* FOOTER */
+.custom-footer {
+    margin-top: 42px;
+    padding: 22px 0 8px 0;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.footer-logo {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    font-weight: 800;
+}
+
+/* ANIMACIONES */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes floatTitle {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+"""
 
 
 # ==========================
 # UTILS
 # ==========================
-def softmax(x: np.ndarray) -> np.ndarray:
+def softmax(x):
     x = x - np.max(x)
     e = np.exp(x)
     return e / (np.sum(e) + 1e-9)
 
 
-def load_audio_mono_16k(path: str) -> np.ndarray:
-    # librosa es robusto con wav/mp3/etc (si tu entorno lo permite)
-    y, sr = librosa.load(path, sr=TARGET_SR, mono=True)
-    y = y.astype(np.float32)
-    return y
+def normalize_id2label(d):
+    return {int(k): v for k, v in d.items()}
 
 
-def pad_or_trim(y: np.ndarray, target_len: int) -> np.ndarray:
+def load_audio(path):
+    y, _ = librosa.load(path, sr=TARGET_SR, mono=True)
+    return y.astype(np.float32)
+
+
+def pad_or_trim(y, target_len):
     if len(y) > target_len:
         return y[:target_len]
     if len(y) < target_len:
@@ -68,102 +271,26 @@ def pad_or_trim(y: np.ndarray, target_len: int) -> np.ndarray:
 
 
 # ==========================
-# LOAD TEXT MODEL
+# LOAD MODELS
 # ==========================
-text_tokenizer = AutoTokenizer.from_pretrained(TEXT_MODEL_DIR)
-text_model = AutoModelForSequenceClassification.from_pretrained(TEXT_MODEL_DIR).to(DEVICE)
+text_tokenizer = AutoTokenizer.from_pretrained(TEXT_MODEL_ID)
+text_model = AutoModelForSequenceClassification.from_pretrained(TEXT_MODEL_ID).to(DEVICE)
 text_model.eval()
-TEXT_ID2LABEL = text_model.config.id2label
+TEXT_ID2LABEL = normalize_id2label(text_model.config.id2label)
 
-
-# ==========================
-# LOAD AUDIO MODEL
-# ==========================
-def load_audio_stack():
-    """
-    Devuelve: (feature_extractor, model, id2label)
-    Soporta:
-      - HuggingFace save_pretrained en models/export_transformers
-      - .pt con state_dict (y opcionalmente id2label/label2id dentro)
-    """
-    # 1) HF export
-    if os.path.isdir(AUDIO_HF_DIR) and os.path.isfile(os.path.join(AUDIO_HF_DIR, "config.json")):
-        fe = AutoFeatureExtractor.from_pretrained(AUDIO_HF_DIR)
-        m = ASTForAudioClassification.from_pretrained(AUDIO_HF_DIR).to(DEVICE)
-        m.eval()
-        return fe, m, m.config.id2label
-
-    # 2) .pt
-    if not os.path.isfile(AUDIO_PT_PATH):
-        raise FileNotFoundError(
-            f"No encuentro el modelo de audio. Revisa:\n"
-            f"- Carpeta HF: {AUDIO_HF_DIR}\n"
-            f"- Checkpoint .pt: {AUDIO_PT_PATH}"
-        )
-
-    ckpt = torch.load(AUDIO_PT_PATH, map_location="cpu")
-
-    # Intentamos detectar el formato del checkpoint
-    if isinstance(ckpt, dict):
-        # formatos típicos: {"model": state_dict, "id2label":..., "label2id":...}
-        # o {"state_dict": ...}
-        if "model" in ckpt and isinstance(ckpt["model"], dict):
-            state_dict = ckpt["model"]
-        elif "state_dict" in ckpt and isinstance(ckpt["state_dict"], dict):
-            state_dict = ckpt["state_dict"]
-        else:
-            # quizá ya sea un state_dict puro pero dentro de dict con otras cosas
-            # probamos a usarlo como state_dict si parece compatible
-            state_dict = ckpt
-    else:
-        # ckpt es directamente state_dict
-        state_dict = ckpt
-
-    # labels
-    if isinstance(ckpt, dict) and "id2label" in ckpt and isinstance(ckpt["id2label"], dict):
-        id2label = ckpt["id2label"]
-        num_labels = len(id2label)
-        label2id = ckpt.get("label2id", {v: int(k) for k, v in id2label.items()})
-    else:
-        label2id = {lab: i for i, lab in enumerate(DEFAULT_EMOTIONS)}
-        id2label = {i: lab for lab, i in label2id.items()}
-        num_labels = len(id2label)
-
-    fe = AutoFeatureExtractor.from_pretrained(AST_BASE)
-
-    # reconstruimos AST con las etiquetas
-    m = ASTForAudioClassification.from_pretrained(
-        AST_BASE,
-        num_labels=num_labels,
-        label2id=label2id,
-        id2label=id2label,
-        ignore_mismatched_sizes=True,
-    ).to(DEVICE)
-
-    # Cargamos pesos
-    missing, unexpected = m.load_state_dict(state_dict, strict=False)
-    # Si quieres “estricto”, cambia strict=True arriba.
-    if missing or unexpected:
-        print("[WARN] load_state_dict no fue 100% estricto.")
-        if missing:
-            print("  Missing keys:", missing[:10], "..." if len(missing) > 10 else "")
-        if unexpected:
-            print("  Unexpected keys:", unexpected[:10], "..." if len(unexpected) > 10 else "")
-
-    m.eval()
-    return fe, m, id2label
-
-
-audio_feature_extractor, audio_model, AUDIO_ID2LABEL = load_audio_stack()
+audio_fe = AutoFeatureExtractor.from_pretrained(AUDIO_MODEL_ID)
+audio_model = ASTForAudioClassification.from_pretrained(AUDIO_MODEL_ID).to(DEVICE)
+audio_model.eval()
+AUDIO_ID2LABEL = normalize_id2label(audio_model.config.id2label)
 
 
 # ==========================
 # INFERENCE
 # ==========================
 @torch.no_grad()
-def predict_text(text: str):
+def predict_text(text):
     if not text or not text.strip():
-        return "Escribe un texto.", {}
+        return "Introduce texto", {}
 
     inputs = text_tokenizer(
         text,
@@ -174,27 +301,27 @@ def predict_text(text: str):
     )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
 
-    out = text_model(**inputs)
-    logits = out.logits.squeeze(0).detach().cpu().numpy()
+    logits = text_model(**inputs).logits[0].cpu().numpy()
     probs = softmax(logits)
 
-    pred_id = int(np.argmax(probs))
-    label = TEXT_ID2LABEL.get(pred_id, str(pred_id))
+    pred = int(np.argmax(probs))
+    label = TEXT_ID2LABEL[pred]
 
-    # dict de probabilidades
-    prob_dict = {TEXT_ID2LABEL.get(i, str(i)): float(probs[i]) for i in range(len(probs))}
-    return f"Sentimiento: {label}", prob_dict
+    return label, {
+        TEXT_ID2LABEL[i]: float(probs[i])
+        for i in range(len(probs))
+    }
 
 
 @torch.no_grad()
-def predict_audio(audio_filepath: str):
-    if audio_filepath is None:
-        return "Sube un .wav.", {}
+def predict_audio(path):
+    if path is None:
+        return "Sube audio", {}
 
-    y = load_audio_mono_16k(audio_filepath)
+    y = load_audio(path)
     y = pad_or_trim(y, int(TARGET_SR * MAX_SECONDS))
 
-    inputs = audio_feature_extractor(
+    inputs = audio_fe(
         y,
         sampling_rate=TARGET_SR,
         return_tensors="pt",
@@ -202,43 +329,162 @@ def predict_audio(audio_filepath: str):
     )
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
 
-    out = audio_model(**inputs)
-    logits = out.logits.squeeze(0).detach().cpu().numpy()
+    logits = audio_model(**inputs).logits[0].cpu().numpy()
     probs = softmax(logits)
 
-    pred_id = int(np.argmax(probs))
-    label = AUDIO_ID2LABEL.get(pred_id, str(pred_id))
+    pred = int(np.argmax(probs))
+    label = AUDIO_ID2LABEL[pred]
 
-    prob_dict = {AUDIO_ID2LABEL.get(i, str(i)): float(probs[i]) for i in range(len(probs))}
-    return f"Emoción: {label}", prob_dict
+    return label, {
+        AUDIO_ID2LABEL[i]: float(probs[i])
+        for i in range(len(probs))
+    }
 
 
 # ==========================
-# UI (GRADIO)
+# UI
 # ==========================
-with gr.Blocks() as demo:
-    gr.Markdown("# 🎭 Demo IA: Emoción (Audio) + Sentimiento (Texto)")
-    gr.Markdown(f"**Device:** `{DEVICE}`")
+with gr.Blocks(
+    title="Sonentia",
+    theme=gr.themes.Soft(primary_hue="indigo", neutral_hue="slate"),
+    css=CSS,
+) as demo:
 
-    with gr.Tab("Audio → Emoción"):
-        audio_in = gr.Audio(type="filepath", label="Sube un archivo (wav recomendado)")
-        audio_out = gr.Textbox(label="Predicción")
-        audio_probs = gr.Label(label="Probabilidades")
-        gr.Button("Analizar audio").click(
-            predict_audio,
-            inputs=audio_in,
-            outputs=[audio_out, audio_probs],
-        )
+    with gr.Column(elem_classes="main-wrap"):
 
-    with gr.Tab("Texto → Sentimiento"):
-        text_in = gr.Textbox(lines=4, placeholder="Escribe un texto...", label="Texto")
-        text_out = gr.Textbox(label="Predicción")
-        text_probs = gr.Label(label="Probabilidades")
-        gr.Button("Analizar texto").click(
-            predict_text,
-            inputs=text_in,
-            outputs=[text_out, text_probs],
-        )
+        gr.HTML("""
+        <section class="hero">
+            <div class="badge-row">
+                <span class="badge">🎧 Audio AI</span>
+                <span class="badge">🧠 NLP</span>
+                <span class="badge">⚡ Transformers</span>
+            </div>
+
+            <h1>🎭 Sonentia</h1>
+
+            <p>
+                IA multimodal para detectar emociones en voz y analizar sentimiento en texto.
+            </p>
+
+            <p class="model-status">
+                <span class="status-dot"></span>
+                Modelos activos desde Hugging Face
+            </p>
+        </section>
+        """)
+
+        with gr.Tabs():
+
+            with gr.Tab("🎧 Audio → Emoción"):
+                gr.Markdown(
+                    "### Analiza una grabación de voz y predice la emoción predominante.",
+                    elem_classes="plain-desc",
+                )
+
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown(
+                            "#### Sube un archivo de audio",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            audio_in = gr.Audio(
+                                type="filepath",
+                                show_label=False,
+                            )
+
+                        btn_a = gr.Button("Analizar audio", variant="primary")
+
+                    with gr.Column(scale=1):
+                        gr.Markdown(
+                            "#### Resultado",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            out_a = gr.Textbox(
+                                show_label=False,
+                                placeholder="Aquí aparecerá la emoción detectada...",
+                            )
+
+                        gr.Markdown(
+                            "#### Probabilidades",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            prob_a = gr.Label(
+                                show_label=False,
+                                num_top_classes=6,
+                            )
+
+                btn_a.click(
+                    fn=predict_audio,
+                    inputs=audio_in,
+                    outputs=[out_a, prob_a],
+                    show_progress="full",
+                )
+
+            with gr.Tab("✍️ Texto → Sentimiento"):
+                gr.Markdown(
+                    "### Introduce un texto y analiza su polaridad emocional.",
+                    elem_classes="plain-desc",
+                )
+
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown(
+                            "#### Texto",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            text_in = gr.Textbox(
+                                lines=7,
+                                show_label=False,
+                                placeholder="Ejemplo: Me encanta este proyecto, ha quedado genial.",
+                            )
+
+                        btn_t = gr.Button("Analizar texto", variant="primary")
+
+                    with gr.Column(scale=1):
+                        gr.Markdown(
+                            "#### Resultado",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            out_t = gr.Textbox(
+                                show_label=False,
+                                placeholder="Aquí aparecerá el sentimiento detectado...",
+                            )
+
+                        gr.Markdown(
+                            "#### Probabilidades",
+                            elem_classes="plain-title",
+                        )
+
+                        with gr.Column(elem_classes="glass-card"):
+                            prob_t = gr.Label(
+                                show_label=False,
+                                num_top_classes=3,
+                            )
+
+                btn_t.click(
+                    fn=predict_text,
+                    inputs=text_in,
+                    outputs=[out_t, prob_t],
+                    show_progress="full",
+                )
+
+        gr.HTML("""
+        <div class="custom-footer">
+            <span class="footer-logo">S</span>
+            © 2026 Sonentia · rafiitaaa
+        </div>
+        """)
+
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.queue().launch()
