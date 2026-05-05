@@ -1,3 +1,7 @@
+## Demo
+
+![Demo](demo.gif)
+
 # 🎭 Sonentia
 
 **Sonentia** es un sistema de Inteligencia Artificial multimodal capaz de analizar emociones humanas a partir de dos tipos de entrada:
