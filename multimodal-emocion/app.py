@@ -135,7 +135,7 @@ footer {
 
 /* OCULTAR LABELS NATIVOS */
 .label-wrap,
-label {
+label:not(.container) {
     display: none !important;
 }
 
@@ -150,11 +150,30 @@ label {
 
 /* INPUTS */
 textarea,
-input {
+input,
+textarea.svelte-1f354aw,
+input.svelte-1f354aw {
     background: rgba(2,6,23,0.50) !important;
     color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    caret-color: #f8fafc !important;
     border-radius: 18px !important;
     border: 1px solid rgba(148,163,184,0.18) !important;
+    min-height: 120px !important;
+    font-size: 15px !important;
+}
+
+textarea::placeholder,
+input::placeholder {
+    color: rgba(248,250,252,0.45) !important;
+    -webkit-text-fill-color: rgba(248,250,252,0.45) !important;
+}
+
+textarea:focus,
+input:focus {
+    outline: none !important;
+    border-color: rgba(129,140,248,0.65) !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
 }
 
 textarea:disabled,
@@ -162,6 +181,32 @@ input:disabled {
     opacity: 1 !important;
     background: rgba(2,6,23,0.50) !important;
     color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+}
+
+/* FIX TEXTBOX ESCRIBIBLE */
+#text_input textarea {
+    min-height: 180px !important;
+    height: 180px !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+    background: rgba(15,23,42,0.85) !important;
+    caret-color: #ffffff !important;
+    pointer-events: auto !important;
+    opacity: 1 !important;
+}
+
+#text_input textarea::placeholder {
+    color: rgba(248,250,252,0.45) !important;
+    -webkit-text-fill-color: rgba(248,250,252,0.45) !important;
+}
+
+/* Evita que Gradio pinte encima el área del textbox */
+.textbox,
+.input-container,
+.wrap,
+.wrap-inner {
+    background: transparent !important;
 }
 
 /* AUDIO */
@@ -242,7 +287,6 @@ button:hover {
     100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
 }
 """
-
 
 # ==========================
 # UTILS
@@ -443,7 +487,9 @@ with gr.Blocks(
                             text_in = gr.Textbox(
                                 lines=7,
                                 show_label=False,
-                                placeholder="Ejemplo: Me encanta este proyecto, ha quedado genial.",
+                                placeholder="Escribe aquí tu texto...",
+                                interactive=True,
+                                elem_id="text_input",
                             )
 
                         btn_t = gr.Button("Analizar texto", variant="primary")
